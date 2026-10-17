@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practice Activity: Architect DoseMate at Scale</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Red+Hat+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#fffbea; --ink:#1f1a2e; --soft:#5d566b;
+    --plum:#741b47; --yel:#FFFF02;
+    --apri:#ff8c42; --jade:#00a878; --indigo:#3a56ff; --mustard:#e0a800;
+    --ok:#1f9d55; --miss:#e63946;
+    --sans:"Outfit","Segoe UI",system-ui,sans-serif; --mono:"Red Hat Mono",ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:var(--sans);color:var(--ink);background:var(--paper);min-height:100vh;line-height:1.5;position:relative;overflow-x:hidden}
+  body::before{content:"";position:fixed;inset:-15%;z-index:-2;
+    background:
+      conic-gradient(from 210deg at 12% 18%, rgba(255,140,66,.45), transparent 30%),
+      radial-gradient(34% 30% at 95% 12%, rgba(58,86,255,.38), transparent 70%),
+      radial-gradient(38% 34% at 92% 90%, rgba(0,168,120,.40), transparent 70%),
+      radial-gradient(36% 30% at 6% 92%, rgba(116,27,71,.30), transparent 70%),
+      radial-gradient(28% 24% at 50% 40%, rgba(255,255,2,.22), transparent 70%);
+    animation:float 30s ease-in-out infinite alternate}
+  @keyframes float{to{transform:translate(1.5%,-1.5%) rotate(1deg)}}
+  .grain{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.32;mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .12  0 0 0 0 .1  0 0 0 0 .18  0 0 0 .6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+  .wrap{max-width:1180px;margin:0 auto;padding:18px 16px 40px}
+
+  .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .brand b{display:block;font-size:19px;color:var(--plum);font-weight:800}
+  .brand span{font-family:var(--mono);font-size:12px;color:var(--soft)}
+  .chip{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;background:var(--yel);color:var(--ink);
+    padding:8px 14px;border-radius:6px;box-shadow:inset 0 -3px 0 rgba(0,0,0,.12)}
+
+  /* progress */
+  .prog{background:#fff;border-radius:18px;padding:12px 14px;margin-bottom:18px;box-shadow:0 10px 30px -18px rgba(116,27,71,.5)}
+  .prow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:9px}
+  .pchip{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;padding:5px 11px 5px 6px;border-radius:999px;background:#f6f3ea;color:var(--soft)}
+  .pchip i{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-family:var(--mono);font-size:11px;background:#e7e1d2;color:var(--ink)}
+  .pchip.cur{background:var(--cs);color:var(--ink)} .pchip.cur i{background:var(--c);color:#fff}
+  .pchip.done i{background:var(--c);color:#fff}
+  .pcount{margin-left:auto;font-family:var(--mono);font-size:12px;font-weight:700}
+  .bar{height:12px;border-radius:12px;background:#f1ecdf;overflow:hidden;display:flex}
+  .bar span{height:100%;transition:width .5s ease;background:repeating-linear-gradient(-45deg,var(--c) 0 8px,color-mix(in srgb,var(--c) 75%,#fff) 8px 16px);
+    background-size:22px 22px;animation:stripes 1s linear infinite}
+  @keyframes stripes{to{background-position:22px 0}}
+
+  .layout{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px;align-items:start}
+  .layout>*{min-width:0}
+  .layout.full{grid-template-columns:minmax(0,1fr)}
+  .layout.full .board{display:none}
+
+  .card{background:#fff;border-radius:28px 28px 28px 8px;padding:24px;position:relative;box-shadow:0 18px 40px -24px rgba(31,26,46,.55)}
+  .card::before{content:"";position:absolute;left:24px;top:0;width:70px;height:6px;border-radius:0 0 6px 6px;background:var(--sc,var(--plum))}
+  .eyebrow{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--sc,var(--plum))}
+  h1{font-size:clamp(28px,4.4vw,44px);line-height:1.05;margin:8px 0 12px;font-weight:800;letter-spacing:-.8px}
+  h2{font-size:clamp(22px,3vw,30px);line-height:1.15;margin:6px 0 10px;font-weight:800}
+  h3{font-size:16.5px;margin:0 0 8px}
+  .mk{background:var(--yel);padding:0 6px;border-radius:4px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+  p{margin:0 0 12px}
+  .lead{font-size:16.5px;color:var(--soft)}
+  .floors{display:grid;gap:10px;margin:18px 0}
+  .floor{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:16px;background:var(--cs);position:relative;overflow:hidden}
+  .floor .n{font-family:var(--mono);font-weight:700;font-size:20px;color:var(--c);width:30px}
+  .floor .ic{flex:0 0 42px;height:42px;border-radius:12px;background:#fff;color:var(--c);display:grid;place-items:center}
+  .floor .ic svg{width:26px;height:26px}
+  .floor b{display:block} .floor small{color:var(--soft);font-size:12.5px}
+  .floor::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);transform:translateX(-100%);animation:shine 4s infinite;animation-delay:var(--d)}
+  @keyframes shine{40%,100%{transform:translateX(100%)}}
+  .note{font-size:14px;color:var(--soft)}
+
+  .btn{font-family:var(--sans);font-weight:800;font-size:16px;border:0;cursor:pointer;background:var(--ink);color:#fff;padding:13px 24px;border-radius:999px;
+    box-shadow:0 0 0 3px var(--yel) inset;transition:transform .12s, background .12s}
+  .btn:hover{transform:translateY(-2px);background:var(--plum)}
+  .btn:active{transform:translateY(1px)}
+  .btn.alt{background:#fff;color:var(--ink);box-shadow:0 0 0 2px var(--ink) inset}
+  .btn:focus-visible,.opt:focus-visible{outline:3px solid var(--indigo);outline-offset:3px}
+
+  .hero-ic{width:78px;height:78px;border-radius:24px;background:var(--sc);color:#fff;display:grid;place-items:center;margin-bottom:10px;animation:bob 3s ease-in-out infinite}
+  .hero-ic svg{width:44px;height:44px}
+  @keyframes bob{50%{transform:translateY(-5px) rotate(-3deg)}}
+  .keys{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 20px}
+  .key{font-size:13px;font-weight:600;padding:6px 12px;border-radius:999px;background:var(--cs);border:1.5px solid var(--c)}
+
+  .qtop{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .pill{font-family:var(--mono);font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--scs)}
+  .prompt{font-size:19px;font-weight:600;line-height:1.4;margin:14px 0 14px;overflow-wrap:anywhere}
+  .ask{font-size:14px;font-weight:600;color:var(--soft);margin-bottom:10px}
+  .opts{display:grid;gap:10px;grid-template-columns:repeat(var(--cols,2),minmax(0,1fr))}
+  .opt{font-family:var(--sans);text-align:left;cursor:pointer;background:var(--cs);border:2px solid transparent;border-radius:18px;padding:12px;display:flex;align-items:center;gap:11px;
+    font-size:15.5px;font-weight:600;color:var(--ink);transition:transform .12s,box-shadow .12s}
+  .opt .oi{flex:0 0 40px;height:40px;border-radius:50%;background:var(--c);color:#fff;display:grid;place-items:center}
+  .opt .oi svg{width:24px;height:24px}
+  .opt small{display:block;font-weight:400;font-size:12px;color:var(--soft)}
+  .opt:hover:not([disabled]){transform:translateY(-2px);box-shadow:0 8px 18px -10px var(--c)}
+  .opt[disabled]{cursor:default}
+  .opt.dim{opacity:.38}
+  .opt.mine.right{border-color:var(--ok);background:#e5f5ec}
+  .opt.mine.wrong{border-color:var(--miss);background:#fde6e8}
+  .opt.truth{border-color:var(--ok);border-style:dashed;background:#f0faf4}
+  .tag{margin-left:auto;font-family:var(--mono);font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap}
+  .opt{position:relative}
+  .opts.c3 .tag{position:absolute;top:-10px;right:10px;margin:0}
+  .tag.ok{background:var(--ok);color:#fff}.tag.no{background:var(--miss);color:#fff}.tag.ans{background:#fff;color:var(--ok);border:1.5px solid var(--ok)}
+  .status{margin-top:16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border-radius:16px;background:#faf6e8}
+  .status .m{display:flex;align-items:center;gap:10px;font-weight:600}
+  .dot{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px}
+  .dot.ok{background:var(--ok)}.dot.no{background:var(--miss)}
+
+  /* board */
+  .board{position:sticky;top:14px;background:#fff;border-radius:28px 8px 28px 28px;overflow:hidden;box-shadow:0 18px 40px -24px rgba(58,86,255,.6)}
+  .bhead{display:flex;align-items:center;gap:10px;padding:13px 16px;background:linear-gradient(90deg,var(--plum),#4a1030);color:#fff}
+  .bhead b{font-size:14.5px}
+  .bhead .pulse{margin-left:auto;display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--yel)}
+  .bhead .pulse i{width:8px;height:8px;border-radius:50%;background:var(--yel);animation:beat 1.3s infinite}
+  @keyframes beat{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.5);opacity:.4}}
+  .bbody{padding:16px;min-height:300px;background:radial-gradient(circle at 1px 1px,rgba(31,26,46,.12) 1px,transparent 1.5px) 0 0/16px 16px}
+  .bcap{padding:12px 16px;border-top:1px solid #f0ead8;font-size:13.5px;color:var(--soft);min-height:46px}
+  .bcap b{color:var(--ink)}
+  .flash-bad{animation:fbad .9s ease}
+  @keyframes fbad{0%,100%{box-shadow:none}30%,70%{box-shadow:0 0 0 4px var(--miss)}}
+  .pop{animation:pop .6s ease}
+  @keyframes pop{40%{transform:scale(1.07)}}
+
+  /* tiers */
+  .tiers{display:grid;gap:10px;position:relative}
+  .tier{border-radius:16px;padding:10px 12px;background:var(--cs);border:2px solid var(--c);min-height:78px;position:relative}
+  .tier h4{margin:0 0 6px;display:flex;align-items:center;gap:8px;font-size:14px}
+  .tier h4 span{width:26px;height:26px;border-radius:8px;background:var(--c);color:#fff;display:grid;place-items:center}
+  .tier h4 svg{width:17px;height:17px}
+  .tier h4 em{font-style:normal;font-weight:400;font-size:11.5px;color:var(--soft);margin-left:auto}
+  .slots{display:flex;flex-wrap:wrap;gap:6px}
+  .fcard{font-size:12px;font-weight:600;background:#fff;border-radius:8px;padding:4px 8px 4px 20px;position:relative;box-shadow:0 2px 0 var(--c)}
+  .fcard::before{content:"";position:absolute;left:7px;top:9px;width:7px;height:7px;border-radius:50%;background:var(--ok)}
+  .fcard.no::before{background:transparent;border:2px solid var(--miss);width:5px;height:5px}
+  .fcard.drop{animation:drop .7s cubic-bezier(.2,1.4,.4,1)}
+  @keyframes drop{from{transform:translateY(-120px) rotate(-8deg);opacity:0}to{transform:none;opacity:1}}
+  .link-v{height:10px;margin:-6px auto;width:4px;background:repeating-linear-gradient(var(--soft) 0 4px,transparent 4px 8px);background-size:4px 8px;animation:vflow .6s linear infinite;opacity:.5}
+  @keyframes vflow{to{background-position:0 8px}}
+
+  /* blocks */
+  .grid6{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  .blk{border-radius:16px;padding:12px 10px;text-align:center;background:#fff;border:2px dashed #d9d2c0;color:var(--soft);transition:background .4s,color .4s,border-color .4s}
+  .blk .bi{width:40px;height:40px;margin:0 auto 6px;border-radius:12px;display:grid;place-items:center;background:#f4f0e3;color:var(--c)}
+  .blk .bi svg{width:24px;height:24px}
+  .blk b{display:block;font-size:12.5px;color:var(--ink);line-height:1.2}
+  .blk small{font-family:var(--mono);font-size:10.5px}
+  .blk.lit{background:var(--cs);border:2px solid var(--c);color:var(--ink)}
+  .blk.lit .bi{background:var(--c);color:#fff}
+  .plat{border:2px solid var(--ink);border-radius:18px;padding:12px;margin-top:12px;text-align:center;font-family:var(--mono);font-size:12px;background:#fffdf3}
+  .paths{display:grid;gap:10px}
+  .path{display:flex;gap:12px;align-items:center;padding:12px;border-radius:16px;background:var(--cs);border:2px solid var(--c);transition:opacity .4s}
+  .path .bi{flex:0 0 40px;height:40px;border-radius:12px;background:var(--c);color:#fff;display:grid;place-items:center}
+  .path .bi svg{width:24px;height:24px}
+  .path b{display:block;font-size:14px}
+  .path small{font-size:12px;color:var(--soft)}
+  .path.fade{opacity:.35}
+  .path.win{box-shadow:0 0 0 4px var(--ok)}
+
+  /* twin */
+  .sync{display:grid;grid-template-columns:1fr 70px 1fr;align-items:center;gap:6px;margin-bottom:14px}
+  .tw{border-radius:14px;padding:10px;background:#fff;border:2px solid var(--plum);text-align:center}
+  .tw b{display:block;font-size:13px}
+  .tw small{font-family:var(--mono);font-size:10.5px;color:var(--soft)}
+  .tw.ghost{border-style:dashed;background:#fbf2f6}
+  .beam{height:24px;position:relative;overflow:hidden}
+  .beam::before{content:"";position:absolute;left:0;right:0;top:11px;height:2px;background:rgba(116,27,71,.25)}
+  .beam i{position:absolute;top:7px;width:10px;height:10px;border-radius:50%;background:var(--plum);animation:zip 1.6s linear infinite}
+  .beam i:nth-child(2){animation-delay:.53s}.beam i:nth-child(3){animation-delay:1.06s}
+  @keyframes zip{from{left:-10px}to{left:100%}}
+  .beam.broken::before{background:repeating-linear-gradient(90deg,var(--miss) 0 5px,transparent 5px 9px)}
+  .beam.broken i{display:none}
+  .nest{position:relative;border-radius:18px;padding:22px 10px 10px;border:2px solid var(--c);background:var(--cs);transition:box-shadow .4s}
+  .nest>.nl{position:absolute;top:4px;left:12px;font-size:11.5px;font-weight:700;font-family:var(--mono);color:var(--c);text-transform:uppercase;letter-spacing:.4px}
+  .nest.glow{box-shadow:0 0 0 4px var(--c),0 0 24px 4px var(--c);animation:pop .6s ease}
+  .nest .inner{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;padding:6px 0}
+  .nest .inner svg{width:28px;height:28px}
+
+  /* calc */
+  .counter{text-align:center;padding:18px 10px;border-radius:20px;background:#fff;border:2px solid var(--indigo)}
+  .counter .eq{font-family:var(--mono);font-size:13px;color:var(--soft)}
+  .counter .big{font-size:46px;font-weight:800;color:var(--indigo);line-height:1.1;font-variant-numeric:tabular-nums}
+  .counter .unit{font-size:13px;font-weight:600}
+  .bins{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:end}
+  .bin{border-radius:14px 14px 18px 18px;border:2px solid var(--c);background:var(--cs);min-height:150px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding:8px;position:relative;overflow:hidden}
+  .bin b{font-size:14px} .bin small{font-size:11px;color:var(--soft);text-align:center}
+  .bin .bi{width:34px;height:34px;color:var(--c)} .bin .bi svg{width:34px;height:34px}
+  .datablk{position:absolute;top:-40px;left:50%;width:46px;height:26px;margin-left:-23px;border-radius:7px;background:var(--c);border:2px solid var(--ink);animation:fall .9s cubic-bezier(.3,1.3,.5,1) forwards}
+  @keyframes fall{to{top:42px}}
+  .bars5{display:flex;align-items:flex-end;gap:10px;height:170px;padding:0 4px;border-bottom:2px solid var(--ink)}
+  .b5{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+  .b5 i{width:100%;border-radius:8px 8px 0 0;background:var(--c);height:0;transition:height .9s cubic-bezier(.2,1,.3,1)}
+  .b5.hl i{box-shadow:0 0 0 3px var(--yel),0 0 0 5px var(--ink)}
+  .b5lab{display:flex;gap:10px;padding:6px 4px 0}
+  .b5lab span{flex:1;text-align:center;font-size:11px;font-weight:600}
+  .chartbox svg{width:100%;height:auto;display:block}
+  .draw{stroke-dasharray:600;stroke-dashoffset:600;animation:draw 1.4s ease forwards}
+  @keyframes draw{to{stroke-dashoffset:0}}
+
+  /* final */
+  .rings{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0 22px}
+  .ring{text-align:center;border-radius:20px;padding:12px;background:var(--cs)}
+  .ring svg{width:92px;height:92px}
+  .ring circle.v{transition:stroke-dashoffset 1.2s ease}
+  .ring b{display:block;font-size:13.5px}
+  .sumgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:22px}
+  .sum{border-radius:18px;padding:12px 14px;background:#fffdf5;border:2px solid var(--c)}
+  .sum h3{color:var(--c)}
+  .sum ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+  .sum li{display:flex;gap:8px;font-size:13.5px;align-items:baseline}
+  .sum li i{flex:0 0 10px;height:10px;border-radius:50%;background:var(--ok);transform:translateY(1px)}
+  .sum li i.no{background:transparent;border:2px solid var(--miss)}
+  .sum li em{font-style:normal;color:var(--soft);font-size:12.5px}
+  .ideas{list-style:none;margin:0 0 22px;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .ideas li{padding:14px;border-radius:18px;background:var(--cs);font-size:15px;position:relative;padding-left:52px}
+  .ideas li::before{content:attr(data-n);position:absolute;left:14px;top:14px;width:28px;height:28px;border-radius:8px;background:var(--c);color:#fff;font-family:var(--mono);font-size:12px;font-weight:700;display:grid;place-items:center}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--soft);margin:-8px 0 16px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+  @media (max-width:920px){.layout{grid-template-columns:minmax(0,1fr)}.board{position:static}.rings{grid-template-columns:repeat(2,minmax(0,1fr))}.sumgrid,.ideas{grid-template-columns:1fr}}
+  @media (max-width:600px){.card{padding:18px}.opts{grid-template-columns:1fr!important}.prompt{font-size:17px}.grid6{grid-template-columns:repeat(2,minmax(0,1fr))}.pcount{margin-left:0}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.draw{stroke-dashoffset:0}.datablk{top:42px}}
+</style>
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><b>Nexford University</b><span>AIA3200 · Foundations of Robotics and IoT</span></div>
+    <span class="chip">Practice Activity · Module 4</span>
+  </header>
+  <div class="prog" id="prog" aria-label="Progress"></div>
+  <main class="layout" id="layout">
+    <section class="card" id="stage" aria-live="polite"></section>
+    <aside class="board" aria-label="Architecture board">
+      <div class="bhead"><b id="btitle">Architecture Board</b><span class="pulse"><i></i>LIVE</span></div>
+      <div class="bbody" id="bbody"></div>
+      <div class="bcap" id="bcap"></div>
+    </aside>
+  </main>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var REDUCED=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var P='viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+  var G={
+    device:'<path d="M9 27h14"/><rect x="9" y="5" width="14" height="18" rx="4"/><path d="M12 11h8l-1 6h-6z"/><circle cx="20" cy="8" r="1" fill="currentColor"/>',
+    hub:'<path d="M6 14l10-8 10 8"/><rect x="8" y="16" width="16" height="10" rx="2"/><path d="M12 21h2M18 21h2"/>',
+    cloud:'<path d="M9 23h15a5 5 0 0 0 .5-10A8 8 0 0 0 9.2 12 5.5 5.5 0 0 0 9 23z"/><path d="M12 18h9"/>',
+    mgmt:'<rect x="5" y="6" width="10" height="8" rx="2"/><rect x="5" y="18" width="10" height="8" rx="2"/><path d="M19 10h8M19 22h8"/><path d="M8 10l1.5 1.5L12 9"/>',
+    ingest:'<path d="M5 6h22l-8 10v8l-6 3V16z"/>',
+    rules:'<circle cx="8" cy="8" r="3"/><path d="M8 11v4c0 3 2 4 5 4h6"/><path d="M8 15v8"/><path d="M17 16l3 3-3 3"/><circle cx="8" cy="25" r="2"/>',
+    storage:'<ellipse cx="16" cy="8" rx="9" ry="3"/><path d="M7 8v16c0 1.7 4 3 9 3s9-1.3 9-3V8"/><path d="M7 16c0 1.7 4 3 9 3s9-1.3 9-3"/>',
+    analytics:'<path d="M5 26h22"/><path d="M6 21l6-6 5 4 9-10"/><path d="M21 9h5v5"/>',
+    security:'<rect x="7" y="14" width="18" height="13" rx="3"/><path d="M11 14v-4a5 5 0 0 1 10 0v4"/><circle cx="16" cy="20" r="2"/>',
+    service:'<rect x="5" y="17" width="9" height="9" rx="2"/><rect x="18" y="17" width="9" height="9" rx="2"/><rect x="11.5" y="6" width="9" height="9" rx="2"/>',
+    vendor:'<rect x="5" y="7" width="22" height="18" rx="4"/><path d="M8 17h4l2-5 3 9 2-4h5"/>',
+    inhouse:'<path d="M5 26h22"/><path d="M8 26V12l8-6 8 6v14"/><path d="M13 26v-7h6v7"/><path d="M20 4l4 4"/>',
+    comp:'<circle cx="16" cy="16" r="4"/><path d="M16 5v4M16 23v4M5 16h4M23 16h4"/>',
+    asset:'<rect x="9" y="5" width="14" height="22" rx="4"/><circle cx="16" cy="12" r="3"/><path d="M13 20h6"/>',
+    system:'<rect x="4" y="5" width="9" height="9" rx="2"/><rect x="19" y="5" width="9" height="9" rx="2"/><rect x="11.5" y="19" width="9" height="9" rx="2"/><path d="M13 10h6M9 14l4 5M23 14l-4 5"/>',
+    process:'<circle cx="6" cy="16" r="3"/><circle cx="16" cy="16" r="3"/><circle cx="26" cy="16" r="3"/><path d="M9 16h4M19 16h4"/><path d="M6 13c0-5 20-5 20 0"/>',
+    twin:'<rect x="4" y="9" width="13" height="16" rx="3"/><rect x="15" y="7" width="13" height="16" rx="3" stroke-dasharray="3 2.5"/>',
+    missed:'<circle cx="16" cy="16" r="11"/><path d="M16 9v7l4 3"/><path d="M5 27l22-22"/>',
+    unknown:'<path d="M4 13a17 17 0 0 1 24 0"/><path d="M9 18a10 10 0 0 1 14 0"/><path d="M5 27l22-22"/>',
+    calc:'<rect x="7" y="4" width="18" height="24" rx="3"/><rect x="10" y="7" width="12" height="5" rx="1"/><path d="M11 17h2M15 17h2M19 17h2M11 22h2M15 22h2M19 22h2"/>',
+    hot:'<path d="M16 4c0 6-7 8-7 15a7 7 0 0 0 14 0c0-4-2-6-3-8-1 3-2 4-4 4 1-4 1-7 0-11z"/>',
+    warm:'<circle cx="16" cy="16" r="5"/><path d="M16 4v3M16 25v3M4 16h3M25 16h3M7.5 7.5l2 2M22.5 22.5l2 2M7.5 24.5l2-2M22.5 9.5l2-2"/>',
+    cold:'<path d="M16 4v24M6 10l20 12M26 10L6 22"/><path d="M13 6l3 3 3-3M13 26l3-3 3 3"/>',
+    linear:'<path d="M5 27V5"/><path d="M5 27h22"/><path d="M7 24L26 8"/>',
+    flat:'<path d="M5 27V5"/><path d="M5 27h22"/><path d="M7 14h19"/>',
+    steps:'<path d="M5 27V5"/><path d="M5 27h22"/><path d="M7 22h7v-6h7v-6h5"/>',
+    devc:'<rect x="9" y="5" width="14" height="22" rx="4"/><path d="M13 21h6"/>',
+    people:'<circle cx="11" cy="10" r="3.5"/><circle cx="22" cy="11" r="3"/><path d="M4 26c0-5 3-8 7-8s7 3 7 8"/><path d="M18 26c0-4 2-6 4-6s5 2 5 6"/>',
+    coins:'<ellipse cx="16" cy="9" rx="9" ry="3.5"/><path d="M7 9v7c0 2 4 3.5 9 3.5s9-1.5 9-3.5V9"/><path d="M7 16v7c0 2 4 3.5 9 3.5s9-1.5 9-3.5v-7"/>',
+    num:'<path d="M9 5l-2 22M19 5l-2 22M5 12h20M4 20h20"/>',
+    arch:'<path d="M4 27h24"/><path d="M6 27V13l10-7 10 7v14"/><path d="M11 27V17h10v10"/><path d="M11 22h10"/>'
+  };
+  function ic(k){return '<svg '+P+'>'+G[k]+'</svg>';}
+  function esc(t){return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+  var K={apri:["#ff8c42","#fff0e4"],jade:["#00a878","#dff6ee"],indigo:["#3a56ff","#e6eaff"],plum:["#741b47","#f7e6ee"],mustard:["#e0a800","#fff6d4"],ink:["#1f1a2e","#ece9f1"],ok:["#1f9d55","#e5f5ec"],miss:["#e63946","#fde6e8"]};
+  function op(key,label,icon,col,sub){return {key:key,label:label,icon:icon,c:K[col][0],cs:K[col][1],sub:sub||""};}
+
+  var PLACE=[op("device","On the device","device","apri","Fastest; works offline"),op("hub","Home hub","hub","plum","More storage; still local"),op("cloud","In the cloud","cloud","indigo","Sees every patient")];
+  var BLOCKS=[op("mgmt","Device management","mgmt","indigo"),op("ingest","Ingestion","ingest","jade"),op("rules","Rules","rules","apri"),
+              op("storage","Storage","storage","plum"),op("analytics","Analytics","analytics","mustard"),op("security","Security","security","ink")];
+  var PATHS=[op("service","Build on a cloud IoT service","service","indigo"),op("vendor","Specialized health IoT vendor","vendor","jade"),op("inhouse","Build in-house","inhouse","apri")];
+  var TWINS=[op("comp","Component twin","comp","apri","One part"),op("asset","Asset twin","asset","jade","One device"),op("system","System twin","system","indigo","Many devices"),op("process","Process twin","process","plum","A whole flow")];
+  var SYNC=[op("missed","The patient has missed every dose since 8 a.m.","missed","miss"),op("unknown","DoseMate stopped syncing, so the doses since 7:55 a.m. are unknown","unknown","indigo")];
+  function nums(arr,unit){return arr.map(function(v){return op(v[0],v[1],"num","indigo",unit||"");});}
+  var TIERS=[op("hot","Hot","hot","apri","Fast, more expensive"),op("warm","Warm","warm","mustard","Regular reports"),op("cold","Cold","cold","indigo","Cheapest, slowest")];
+  var LINES=[op("devices","Devices","devc","apri"),op("cloudfees","Cloud IoT fees","cloud","indigo"),op("people","People","people","plum")];
+  var GROW=[op("linear","Grows with every patient","linear","jade"),op("flat","Mostly fixed","flat","plum"),op("steps","Grows in steps","steps","apri")];
+
+  var STATIONS=[
+    {name:"Place the Decision",short:"Placement",c:"#ff8c42",cs:"#fff0e4",icon:"hub",board:"Where DoseMate Thinks",
+     brief:"Every DoseMate decision has to live somewhere: on the device, on a home hub, or in the cloud. Latency, bandwidth, privacy, offline operation, and cost decide where. Place each function.",
+     ask:"Where should this function run?",
+     items:[
+       {q:"Turn on DoseMate's reminder light at 8 a.m., even when the internet is down.",a:"device",opts:PLACE,scene:"tiers",log:"Reminder light at 8 a.m."},
+       {q:"Produce a weekly adherence report across all 500 pilot patients.",a:"cloud",opts:PLACE,scene:"tiers",log:"Weekly report, 500 patients"},
+       {q:"Hold dose events during an internet outage, using local storage with more room than the dispenser has.",a:"hub",opts:PLACE,scene:"tiers",log:"Hold events in an outage"},
+       {q:"Turn many load sensor readings into one \"dose removed\" event before anything is sent.",a:"device",opts:PLACE,scene:"tiers",log:"One event, not every reading"},
+       {q:"Push one software update that reaches every dispenser from a single place.",a:"cloud",opts:PLACE,scene:"tiers",log:"Update from one place"}
+     ]},
+    {name:"Assemble the Platform",short:"Platform",c:"#00a878",cs:"#dff6ee",icon:"service",board:"DoseMate's IoT Platform",
+     brief:"Most IoT platforms provide the same six building blocks. Match each job to its block, then identify the three ways CareLoop could get a platform.",
+     ask:"",
+     items:[
+       {q:"Know which of 5,000 dispensers are online, and update their firmware.",a:"mgmt",opts:BLOCKS,scene:"blocks",ask:"Which building block does this?",log:"Who is online, firmware updates"},
+       {q:"Accept every dose event arriving on each patient's topic, reliably and in order.",a:"ingest",opts:BLOCKS,scene:"blocks",ask:"Which building block does this?",log:"Receive every dose event"},
+       {q:"If a dose is missed, notify the nurse on call.",a:"rules",opts:BLOCKS,scene:"blocks",ask:"Which building block does this?",log:"Missed dose triggers a nurse alert"},
+       {q:"Keep last week's events for the nurse dashboard and years of history for reports.",a:"storage",opts:BLOCKS,scene:"blocks",ask:"Which building block does this?",log:"Recent and historical data"},
+       {q:"Spot which patients' adherence is slipping this month.",a:"analytics",opts:BLOCKS,scene:"blocks",ask:"Which building block does this?",log:"Adherence slipping this month"},
+       {q:"Make sure only Grace's team can see patient-level data.",a:"security",opts:BLOCKS,scene:"blocks",ask:"Which building block does this?",log:"Only Grace's team sees patient data"},
+       {q:"Pay per use and scale easily, but CareLoop still needs engineers to build and run its own app.",a:"service",opts:PATHS,scene:"paths",ask:"Which platform option is this?",log:"Pay per use, own app"},
+       {q:"Fastest to launch and may include health-specific features, but per-patient fees can be high.",a:"vendor",opts:PATHS,scene:"paths",ask:"Which platform option is this?",log:"Fastest launch, per-patient fees"},
+       {q:"Full control over data and features, but the slowest and riskiest path.",a:"inhouse",opts:PATHS,scene:"paths",ask:"Which platform option is this?",log:"Full control, slowest and riskiest"}
+     ]},
+    {name:"Keep the Twin in Sync",short:"Twins",c:"#741b47",cs:"#f7e6ee",icon:"twin",board:"DoseMate Twin Monitor",
+     brief:"A digital twin is a virtual representation of a real thing, kept in step with it by data. Name the type of twin in each case, then read what a twin is telling you.",
+     ask:"",
+     items:[
+       {q:"A twin that mirrors only DoseMate's load sensor, tracking its readings over time.",a:"comp",opts:TWINS,scene:"nest",ask:"Which type of twin is this?",log:"Load sensor only"},
+       {q:"A twin of one DoseMate dispenser, showing its sensor, motor, and reminder light working together.",a:"asset",opts:TWINS,scene:"nest",ask:"Which type of twin is this?",log:"One dispenser"},
+       {q:"A twin of the whole DoseMate fleet, including the network and cloud behind it.",a:"system",opts:TWINS,scene:"nest",ask:"Which type of twin is this?",log:"Whole fleet with network and cloud"},
+       {q:"A twin of CareLoop's refill-to-dose flow, from Sam's pharmacy to the patient to Grace's nurses.",a:"process",opts:TWINS,scene:"nest",ask:"Which type of twin is this?",log:"Refill-to-dose flow"},
+       {q:"Grace's dashboard shows no doses taken since 8 a.m. The patient's twin also shows \"last synced: 7:55 a.m.\" and \"offline.\"",a:"unknown",opts:SYNC,scene:"sync",ask:"What should the nurse conclude?",log:"Last synced 7:55 a.m., offline",cols:1}
+     ]},
+    {name:"Run the Numbers",short:"Cost",c:"#3a56ff",cs:"#e6eaff",icon:"calc",board:"Cost Lab",
+     brief:"Dana needs a number she can defend to finance. Work out data volume, amortization, and metering, place data in the right storage tier, and decide how each cost grows.",
+     ask:"",
+     items:[
+       {q:"The pilot has 500 patients, and each DoseMate sends about 30 messages a day.",a:"15000",opts:nums([["1500","1,500"],["15000","15,000"],["150000","150,000"]],"messages a day"),scene:"count",count:{to:15000,eq:"500 × 30",unit:"messages a day"},ask:"How many messages a day does the pilot send?",log:"500 × 30 messages a day",cols:3},
+       {q:"A $60 dispenser lasts three years.",a:"20",opts:nums([["20","$20"],["60","$60"],["180","$180"]],"per year"),scene:"count",count:{to:20,eq:"$60 ÷ 3 years",unit:"per device, per year",pre:"$"},ask:"Amortized, what does it cost per year?",log:"$60 device over 3 years",cols:3},
+       {q:"AWS IoT Core meters messages in 5 KB units.",a:"2",opts:nums([["1","As 1 message"],["2","As 2 messages"],["7","As 7 messages"]]),scene:"count",count:{to:2,eq:"7 KB in 5 KB units",unit:"billed messages"},ask:"How is one 7 KB message billed?",log:"A 7 KB message",cols:3},
+       {q:"The last few days of dose events on Grace's nurse dashboard.",a:"hot",opts:TIERS,scene:"bins",ask:"Which storage tier fits?",log:"Last few days, dashboard",cols:3},
+       {q:"Older history kept for as long as CareLoop's records policy requires.",a:"cold",opts:TIERS,scene:"bins",ask:"Which storage tier fits?",log:"Records-policy archive",cols:3},
+       {q:"At 5,000 patients, think about every line in DoseMate's cost model.",a:"cloudfees",opts:LINES,scene:"bars",ask:"Which line is usually the smallest?",log:"Smallest line at 5,000 patients",cols:3},
+       {q:"A $2-a-month data plan for each dispenser.",a:"linear",opts:GROW,scene:"chart",ask:"How does this cost grow?",log:"Data plan per dispenser",cols:3},
+       {q:"A second support person once CareLoop reaches a certain number of patients.",a:"steps",opts:GROW,scene:"chart",ask:"How does this cost grow?",log:"A second support person",cols:3}
+     ]}
+  ];
+
+  var IDEAS=[
+    {c:"#ff8c42",cs:"#fff0e4",t:"Latency, bandwidth, privacy, offline operation, and cost decide where each decision runs, and good designs split one workflow across device, hub, and cloud."},
+    {c:"#00a878",cs:"#dff6ee",t:"An IoT platform provides six building blocks. CareLoop can build on a cloud IoT service, buy from a health IoT vendor, or build in-house."},
+    {c:"#741b47",cs:"#f7e6ee",t:"A digital twin is only useful while it stays in sync, and how often it updates and how much detail it keeps both cost money."},
+    {c:"#3a56ff",cs:"#e6eaff",t:"Devices and people usually cost far more than the cloud, so every assumption in a cost model needs a label and a source."}
+  ];
+
+  var TOTAL=STATIONS.reduce(function(n,s){return n+s.items.length;},0);
+  var st; function reset(){st={screen:"intro",s:0,i:0,res:STATIONS.map(function(s){return s.items.map(function(){return null;});})};} reset();
+  var $=function(id){return document.getElementById(id);};
+  var $stage=$("stage"),$bb=$("bbody"),$bc=$("bcap"),$bt=$("btitle"),$prog=$("prog"),$layout=$("layout");
+  function find(o,k){for(var j=0;j<o.length;j++) if(o[j].key===k) return o[j]; return null;}
+  function done(){return st.res.reduce(function(n,a){return n+a.filter(Boolean).length;},0);}
+  var timers=[]; function later(fn,ms){timers.push(setTimeout(fn,REDUCED?0:ms));} function clearT(){timers.forEach(clearTimeout);timers=[];}
+
+  /* ---------- board scenes ---------- */
+  function answered(si,filter){var out=[];STATIONS[si].items.forEach(function(it,ii){var r=st.res[si][ii];if(r&&(!filter||filter(it)))out.push({it:it,r:r,ii:ii});});return out;}
+  var SC={
+    tiers:function(it,k,fresh){
+      var si=0,order=["cloud","hub","device"],em={cloud:"sees every patient",hub:"local, more storage",device:"fast, works offline"};
+      var html='<div class="tiers">'+order.map(function(t,ix){
+        var o=find(PLACE,t),cards=answered(si,function(x){return x.a===t;}).map(function(x){
+          var isNew=fresh&&x.ii===st.i;return '<span class="fcard'+(x.r.ok?"":" no")+(isNew?" drop":"")+'" style="--c:'+o.c+'">'+esc(x.it.log)+'</span>';}).join("");
+        return (ix?'<div class="link-v"></div>':'')+'<div class="tier" id="t_'+t+'" style="--c:'+o.c+';--cs:'+o.cs+'"><h4><span>'+ic(o.icon)+'</span>'+o.label+'<em>'+em[t]+'</em></h4><div class="slots">'+(cards||'<small class="note">Nothing placed yet</small>')+'</div></div>';
+      }).join("")+'</div>';
+      $bb.innerHTML=html;
+      if(fresh&&k!==it.a){var b=$("t_"+k);if(b){b.classList.add("flash-bad");}}
+      cap(fresh?"<b>"+esc(it.log)+"</b> belongs "+find(PLACE,it.a).label.toLowerCase().replace("home hub","on the home hub")+".":"Each placed function lands on its tier. Good designs split one workflow across all three.");
+    },
+    blocks:function(it,k,fresh){
+      var si=1,html='<div class="grid6">'+BLOCKS.map(function(o){
+        var n=answered(si,function(x){return x.a===o.key;}).length;
+        var lit=n>0,isNew=fresh&&it.a===o.key;
+        return '<div class="blk'+(lit?" lit":"")+(isNew?" pop":"")+'" id="b_'+o.key+'" style="--c:'+o.c+';--cs:'+o.cs+'"><div class="bi">'+ic(o.icon)+'</div><b>'+o.label+'</b><small>'+(lit?"in place":"empty")+'</small></div>';
+      }).join("")+'</div><div class="plat">DoseMate IoT platform · '+answered(si,function(x){return x.opts===BLOCKS;}).length+' of 6 jobs mapped</div>';
+      $bb.innerHTML=html;
+      if(fresh&&k!==it.a){var b=$("b_"+k);if(b)b.classList.add("flash-bad");}
+      cap(fresh?"<b>"+find(BLOCKS,it.a).label+"</b> handles this job.":"Each answer lights up one building block of the platform.");
+    },
+    paths:function(it,k,fresh){
+      var html='<div class="paths">'+PATHS.map(function(o){
+        var c="path";if(fresh){if(o.key===it.a)c+=" win pop";else c+=" fade";}
+        return '<div class="'+c+'" id="p_'+o.key+'" style="--c:'+o.c+';--cs:'+o.cs+'"><span class="bi">'+ic(o.icon)+'</span><div><b>'+o.label+'</b><small>'+({service:"For example, a major provider's IoT building blocks",vendor:"A ready-made remote-monitoring platform",inhouse:"CareLoop runs its own servers and platform"})[o.key]+'</small></div></div>';
+      }).join("")+'</div>';
+      $bb.innerHTML=html;
+      if(fresh&&k!==it.a){var b=$("p_"+k);if(b){b.classList.remove("fade");b.classList.add("flash-bad");}}
+      cap(fresh?"This describes the option <b>"+find(PATHS,it.a).label+"</b>.":"Three realistic ways for CareLoop to get a platform. Set your criteria before you compare them.");
+    },
+    nest:function(it,k,fresh){
+      var syncHtml='<div class="sync"><div class="tw"><b>Real DoseMate</b><small>in the home</small></div><div class="beam"><i></i><i></i><i></i></div><div class="tw ghost"><b>Digital twin</b><small>kept in sync</small></div></div>';
+      var levels=[["process","Process twin"],["system","System twin"],["asset","Asset twin"],["comp","Component twin"]];
+      function lv(ix){
+        if(ix>=levels.length) return '';
+        var o=find(TWINS,levels[ix][0]),glow=fresh&&it.a===o.key;
+        var content=ix===levels.length-1?'<div class="inner" style="color:'+o.c+'">'+ic("comp")+'<small style="color:var(--ink);font-weight:600">load sensor</small></div>':lv(ix+1);
+        return '<div class="nest'+(glow?" glow":"")+'" id="w_'+o.key+'" style="--c:'+o.c+';--cs:'+o.cs+'"><span class="nl">'+o.label+'</span>'+content+'</div>';
+      }
+      $bb.innerHTML=syncHtml+lv(0);
+      if(fresh&&k!==it.a){var b=$("w_"+k);if(b)b.classList.add("flash-bad");}
+      cap(fresh?"A <b>"+find(TWINS,it.a).label.toLowerCase()+"</b> covers "+({comp:"one part.",asset:"two or more parts working as one device.",system:"many devices working together.",process:"several systems working in one flow."})[it.a]:"Twins nest from smallest to largest: component, asset, system, process.");
+    },
+    sync:function(it,k,fresh){
+      $bb.innerHTML='<div class="sync"><div class="tw"><b>Real DoseMate</b><small id="rs">8:30 a.m.</small></div><div class="beam'+(fresh?" broken":"")+'" id="beam"><i></i><i></i><i></i></div><div class="tw ghost"><b>Digital twin</b><small id="ts">'+(fresh?"last synced 7:55 a.m. · offline":"syncing")+'</small></div></div>'+
+        '<div class="counter" style="border-color:var(--plum)"><div class="eq">Nurse dashboard</div><div class="big" style="color:var(--plum);font-size:30px">No doses since 8 a.m.</div><div class="unit" id="verdict">'+(fresh?"Status since 7:55 a.m.: unknown":"What does this really mean?")+'</div></div>';
+      cap(fresh?"The twin stopped updating at 7:55 a.m. The missing doses may be <b>missing data</b>, not missed doses, so the connection needs checking first.":"A twin is only as current as its last sync.");
+    },
+    count:function(it,k,fresh){
+      var c=it.count;
+      $bb.innerHTML='<div class="counter"><div class="eq">'+esc(c.eq)+'</div><div class="big" id="cnum">'+(fresh?(c.pre||"")+"0":"?")+'</div><div class="unit">'+esc(c.unit)+'</div></div>'+
+        '<p class="note" style="margin-top:14px">Illustrative assumptions from this module. Every assumption in a real model needs a label and a source.</p>';
+      if(fresh){
+        var el=$("cnum"),t0=null,dur=REDUCED?1:1100;
+        (function step(ts){if(!el.isConnected)return;if(!t0)t0=ts;var p=Math.min(1,(ts-t0)/dur);var v=Math.round(c.to*(1-Math.pow(1-p,3)));el.textContent=(c.pre||"")+v.toLocaleString("en-US");if(p<1)requestAnimationFrame(step);})(performance.now());
+        requestAnimationFrame(function(ts){});
+      }
+      cap(fresh?"<b>"+find(it.opts,it.a).label+"</b>. "+({ "15000":"That is 5,475,000 messages a year for the pilot.","20":"Spreading a one-time cost over its life is called amortization.","2":"Message size matters, but on many platforms the number of messages drives the bill."})[it.a]:"Work it out, then watch the number roll in.");
+    },
+    bins:function(it,k,fresh){
+      $bb.innerHTML='<div class="bins">'+TIERS.map(function(o){
+        return '<div class="bin" id="bn_'+o.key+'" style="--c:'+o.c+';--cs:'+o.cs+'">'+(fresh&&o.key===it.a?'<span class="datablk"></span>':'')+'<span class="bi">'+ic(o.icon)+'</span><b>'+o.label+'</b><small>'+o.sub+'</small></div>';
+      }).join("")+'</div>';
+      if(fresh&&k!==it.a){var b=$("bn_"+k);if(b)b.classList.add("flash-bad");}
+      cap(fresh?"This data belongs in <b>"+find(TIERS,it.a).label.toLowerCase()+"</b> storage. Matching data to a tier keeps costs down.":"Hot for data used right now, warm for regular reports, cold for archives.");
+    },
+    bars:function(it,k,fresh){
+      var rows=[["Devices","#ff8c42",88],["Connectivity","#00a878",52],["Cloud IoT fees","#3a56ff",4],["Support","#e0a800",44],["People","#741b47",80]];
+      $bb.innerHTML='<div class="bars5">'+rows.map(function(r,ix){return '<div class="b5'+(fresh&&ix===2?" hl":"")+'" style="--c:'+r[1]+'"><i data-h="'+r[2]+'"></i></div>';}).join("")+'</div>'+
+        '<div class="b5lab">'+rows.map(function(r){return '<span>'+r[0]+'</span>';}).join("")+'</div><p class="note" style="margin-top:10px">Bar heights are illustrative, showing scale rather than exact figures.</p>';
+      if(fresh){later(function(){Array.prototype.forEach.call($bb.querySelectorAll(".b5 i"),function(b){b.style.height=b.getAttribute("data-h")+"%";});},60);}
+      cap(fresh?"The <b>cloud IoT fees</b> come to a few hundred dollars a year at 5,000 patients. Devices and people are the big numbers.":"Five lines make up the cost model. Which one is smallest?");
+    },
+    chart:function(it,k,fresh){
+      var paths={linear:"M30 170 L300 30",flat:"M30 90 L300 90",steps:"M30 150 L120 150 L120 100 L210 100 L210 50 L300 50"};
+      var o=find(GROW,it.a);
+      $bb.innerHTML='<div class="chartbox"><svg viewBox="0 0 320 200" role="img" aria-label="Cost against number of patients"><line x1="30" y1="10" x2="30" y2="180" stroke="#1f1a2e" stroke-width="2"/><line x1="30" y1="180" x2="310" y2="180" stroke="#1f1a2e" stroke-width="2"/>'+
+        '<text x="170" y="196" text-anchor="middle" font-size="11" font-family="Outfit, sans-serif" fill="#5d566b">Number of patients</text><text x="14" y="100" text-anchor="middle" font-size="11" font-family="Outfit, sans-serif" fill="#5d566b" transform="rotate(-90 14 100)">Cost</text>'+
+        (fresh?'<path class="draw" d="'+paths[it.a]+'" fill="none" stroke="'+o.c+'" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>':'<text x="170" y="100" text-anchor="middle" font-size="40" font-family="Outfit, sans-serif" fill="#d9d2c0">?</text>')+'</svg></div>';
+      cap(fresh?"This cost <b>"+o.label.toLowerCase()+"</b>. A pilot hides fixed costs, so show Dana the cost per patient at each scale.":"Some costs grow with every patient, some are mostly fixed, and some grow in steps.");
+    }
+  };
+  function cap(t){$bc.innerHTML=t;}
+  function idle(){
+    $bt.textContent="Architecture Board";
+    $bb.innerHTML='<div class="tiers">'+[["cloud","In the cloud"],["hub","Home hub"],["device","On the device"]].map(function(t,ix){var o=find(PLACE,t[0]);return (ix?'<div class="link-v"></div>':'')+'<div class="tier" style="--c:'+o.c+';--cs:'+o.cs+'"><h4><span>'+ic(o.icon)+'</span>'+t[1]+'</h4><div class="slots"><span class="fcard drop" style="--c:'+o.c+';animation-delay:'+(ix*.25)+'s">DoseMate</span></div></div>';}).join("")+'</div>';
+    cap("From one dispenser to 5,000 patients: where it thinks, what runs it, how it stays in sync, and what it costs.");
+  }
+
+  /* ---------- screens ---------- */
+  function renderProg(){
+    var chips=STATIONS.map(function(s,si){
+      var cls="pchip"+((st.screen==="brief"||st.screen==="item")&&si===st.s?" cur":"")+((st.screen==="final"||si<st.s)&&st.screen!=="intro"?" done":"");
+      return '<span class="'+cls+'" style="--c:'+s.c+';--cs:'+s.cs+'"><i>'+(si+1)+'</i>'+s.short+'</span>';
+    }).join("");
+    var segs=STATIONS.map(function(s,si){var n=st.res[si].filter(Boolean).length;return '<span style="--c:'+s.c+';width:'+(100*n/TOTAL)+'%"></span>';}).join("");
+    $prog.innerHTML='<div class="prow">'+chips+'<span class="pcount">'+done()+' / '+TOTAL+'</span></div><div class="bar" aria-hidden="true">'+segs+'</div>';
+  }
+  function setS(s){$stage.style.setProperty("--sc",s?s.c:"#741b47");$stage.style.setProperty("--scs",s?s.cs:"#f7e6ee");}
+
+  function intro(){
+    setS(null); idle();
+    var f=STATIONS.map(function(s,si){return '<div class="floor" style="--c:'+s.c+';--cs:'+s.cs+';--d:'+(si*.6)+'s"><span class="n">0'+(si+1)+'</span><span class="ic">'+ic(s.icon)+'</span><div><b>'+s.name+'</b><small>'+s.items.length+' items</small></div></div>';}).join("");
+    $stage.innerHTML='<div class="eyebrow">Practice Activity · Edge, Cloud, and Data</div><h1>Architect DoseMate <span class="mk">at Scale</span></h1>'+
+      '<p class="lead">Dana is planning a 500-patient pilot and wants to grow to 5,000. She needs to know where the data goes, who looks after it, and what it costs every year. Grace wants a straight answer for patients about what is sent to the internet. Work through four stations, and watch the Architecture Board build as you go.</p>'+
+      '<div class="floors">'+f+'</div><p class="note">You get one attempt per item. Your answer is recorded, and you move on. About 15 to 20 minutes.</p><button class="btn" id="go">Start Station 1</button>';
+    $("go").onclick=function(){st.screen="brief";st.s=0;render(true);};
+  }
+  function brief(){
+    var s=STATIONS[st.s]; setS(s); $bt.textContent=s.board;
+    var seen={},k="";s.items.forEach(function(it){it.opts.forEach(function(o){if(!seen[o.key]){seen[o.key]=1;k+='<span class="key" style="--c:'+o.c+';--cs:'+o.cs+'">'+o.label+'</span>';}});});
+    $stage.innerHTML='<div class="hero-ic">'+ic(s.icon)+'</div><div class="eyebrow">Station '+(st.s+1)+' of '+STATIONS.length+'</div><h2>'+s.name+'</h2><p class="lead">'+esc(s.brief)+'</p><div class="keys">'+k+'</div><button class="btn" id="go">Begin '+s.items.length+' items</button>';
+    $("go").onclick=function(){st.screen="item";st.i=0;render(true);};
+    SC[s.items[0].scene](s.items[0],null,false);
+  }
+  function item(fresh){
+    clearT();
+    var s=STATIONS[st.s],it=s.items[st.i],r=st.res[st.s][st.i]; setS(s); $bt.textContent=s.board;
+    var opts=it.opts.map(function(o){
+      var c="opt",t="";
+      if(r){if(o.key===r.k){c+=" mine "+(r.ok?"right":"wrong");t='<span class="tag '+(r.ok?"ok":"no")+'">Your answer</span>';}else if(o.key===it.a){c+=" truth";t='<span class="tag ans">Answer</span>';}else c+=" dim";}
+      return '<button class="'+c+'" data-k="'+o.key+'" style="--c:'+o.c+';--cs:'+o.cs+'"'+(r?" disabled":"")+'><span class="oi">'+ic(o.icon)+'</span><span>'+o.label+(o.sub&&o.icon!=="num"?'<small>'+o.sub+'</small>':'')+'</span>'+t+'</button>';
+    }).join("");
+    var cols=it.cols||(it.opts.length===2?2:(it.opts.length===6?2:2));
+    var last=st.i===s.items.length-1,nx=last?(st.s===STATIONS.length-1?"See your architecture review":"Go to Station "+(st.s+2)):"Next item";
+    var stat=r?'<div class="status"><div class="m">'+(r.ok?'<span class="dot ok" aria-hidden="true">&#10003;</span>Recorded as correct.':'<span class="dot no" aria-hidden="true">&#215;</span>Recorded as incorrect. The answer is '+esc(find(it.opts,it.a).label)+'.')+'</div><button class="btn" id="next">'+nx+'</button></div>':"";
+    $stage.innerHTML='<div class="qtop"><div class="eyebrow">Station '+(st.s+1)+' · '+s.name+'</div><span class="pill">Item '+(st.i+1)+' of '+s.items.length+'</span></div><div class="prompt">'+esc(it.q)+'</div><div class="ask">'+(it.ask||s.ask)+'</div><div class="opts'+(cols===3?' c3':'')+'" style="--cols:'+cols+'">'+opts+'</div>'+stat;
+    if(!r){Array.prototype.forEach.call($stage.querySelectorAll(".opt"),function(b){b.onclick=function(){choose(b.getAttribute("data-k"));};});SC[it.scene](it,null,false);}
+    else{var n=$("next");n.onclick=advance;n.focus({preventScroll:true});SC[it.scene](it,r.k,!!fresh);}
+  }
+  function choose(k){if(st.res[st.s][st.i])return;var it=STATIONS[st.s].items[st.i];st.res[st.s][st.i]={k:k,ok:k===it.a};renderProg();item(true);}
+  function advance(){var s=STATIONS[st.s];if(st.i<s.items.length-1)st.i++;else if(st.s<STATIONS.length-1){st.s++;st.i=0;st.screen="brief";}else st.screen="final";render(true);}
+
+  function fin(){
+    setS(null); clearT();
+    var right=0;
+    var rings=STATIONS.map(function(s,si){
+      var c=st.res[si].filter(function(r){return r&&r.ok;}).length;right+=c;var L=2*Math.PI*36,off=L*(1-c/s.items.length);
+      return '<div class="ring" style="--cs:'+s.cs+'"><svg viewBox="0 0 92 92" role="img" aria-label="'+c+' of '+s.items.length+'"><circle cx="46" cy="46" r="36" fill="none" stroke="#fff" stroke-width="10"/>'+
+        '<circle class="v" cx="46" cy="46" r="36" fill="none" stroke="'+s.c+'" stroke-width="10" stroke-linecap="round" stroke-dasharray="'+L.toFixed(1)+'" stroke-dashoffset="'+L.toFixed(1)+'" data-off="'+off.toFixed(1)+'" transform="rotate(-90 46 46)"/>'+
+        '<text x="46" y="52" text-anchor="middle" font-family="Outfit, sans-serif" font-weight="800" font-size="18" fill="#1f1a2e">'+c+'/'+s.items.length+'</text></svg><b>'+s.name+'</b></div>';
+    }).join("");
+    var sums=STATIONS.map(function(s,si){
+      var li=s.items.map(function(it,ii){var r=st.res[si][ii];return '<li><i class="'+(r&&r.ok?"":"no")+'"></i><span>'+esc(it.log)+' <em>· '+esc(find(it.opts,it.a).label)+'</em></span></li>';}).join("");
+      return '<div class="sum" style="--c:'+s.c+'"><h3>'+(si+1)+'. '+s.name+'</h3><ul>'+li+'</ul></div>';
+    }).join("");
+    var ideas=IDEAS.map(function(d,i){return '<li data-n="0'+(i+1)+'" style="--c:'+d.c+';--cs:'+d.cs+'">'+esc(d.t)+'</li>';}).join("");
+    $stage.innerHTML='<div class="eyebrow">Practice Activity complete</div><h1>Architecture <span class="mk">Review</span></h1>'+
+      '<p class="lead">You recorded '+right+' of '+TOTAL+' items as correct. Use this review as you place DoseMate\'s functions, recommend a platform, and build the cost model in your Module 4 assignment.</p>'+
+      '<div class="rings">'+rings+'</div><div class="legend"><span><i style="width:10px;height:10px;border-radius:50%;background:var(--ok);display:inline-block"></i>Recorded as correct</span><span><i style="width:10px;height:10px;border-radius:50%;border:2px solid var(--miss);display:inline-block"></i>Recorded as incorrect</span></div>'+
+      '<div class="sumgrid">'+sums+'</div><h3>Four ideas to carry into your platform recommendation and cost model</h3><ul class="ideas">'+ideas+'</ul><button class="btn alt" id="again">Start again</button>';
+    later(function(){Array.prototype.forEach.call($stage.querySelectorAll("circle.v"),function(c){c.setAttribute("stroke-dashoffset",c.getAttribute("data-off"));});},80);
+    $("again").onclick=function(){reset();render(true);};
+  }
+  function render(top){
+    $layout.className="layout"+(st.screen==="final"?" full":"");
+    renderProg();
+    if(st.screen==="intro")intro();else if(st.screen==="brief")brief();else if(st.screen==="item")item(false);else fin();
+    if(top){try{window.scrollTo({top:0,behavior:"smooth"});}catch(e){window.scrollTo(0,0);} if(st.screen!=="item"){var b=$stage.querySelector(".btn");if(b)b.focus({preventScroll:true});}}
+  }
+  render(false);
+})();
+</script>
+</body>
+</html>
